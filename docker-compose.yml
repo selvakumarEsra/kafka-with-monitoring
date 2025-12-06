@@ -1,4 +1,3 @@
-version: "3.8"
 
 services:
   broker:
@@ -39,7 +38,7 @@ services:
     #   - ./data/kafka:/tmp/kraft-combined-logs
 
   kafka-jmx-exporter:
-    image: prom/jmx-exporter:0.20.0
+    image: sscaling/jmx-prometheus-exporter:latest
     container_name: kafka-jmx-exporter
     depends_on:
       - broker
