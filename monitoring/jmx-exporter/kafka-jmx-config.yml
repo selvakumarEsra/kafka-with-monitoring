@@ -1,0 +1,61 @@
+startDelaySeconds: 0
+hostPort: broker:9101
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+# Restrict to a few useful Kafka & JVM areas to avoid metric explosion
+whitelistObjectNames:
+  - "kafka.server:type=BrokerTopicMetrics,*"
+  - "kafka.server:type=ReplicaManager,*"
+  - "kafka.server:type=KafkaRequestHandlerPool,*"
+  - "kafka.network:type=RequestMetrics,*"
+  - "kafka.log:type=LogFlushStats,*"
+  - "java.lang:type=Memory,*"
+  - "java.lang:type=GarbageCollector,*"
+  - "java.lang:type=Threading,*"
+
+rules:
+  # Messages in per second (per broker)
+  - pattern: 'kafka.server<type=BrokerTopicMetrics, name=(.+)PerSec.*><>Count'
+    name: kafka_broker_topic_$1_total
+    type: counter
+    help: "Kafka broker topic metric $1 (total count)"
+    labels:
+      broker: "broker-1"
+
+  # Request handler idle / active threads
+  - pattern: 'kafka.server<type=KafkaRequestHandlerPool, name=(.+)PercentIdle><>Value'
+    name: kafka_request_handler_$1_percent_idle
+    type: gauge
+
+  # Network request metrics
+  - pattern: 'kafka.network<type=RequestMetrics, name=RequestsPerSec, request=(.+)><>Count'
+    name: kafka_network_requests_total
+    type: counter
+    labels:
+      request: "$1"
+
+  # Replica manager gauges
+  - pattern: 'kafka.server<type=ReplicaManager, name=(.+)><>Value'
+    name: kafka_replica_manager_$1
+    type: gauge
+
+  # JVM memory
+  - pattern: 'java.lang<type=Memory><HeapMemoryUsage>(.+):'
+    name: jvm_memory_heap_$1_bytes
+    type: gauge
+
+  # JVM GC
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionTime'
+    name: jvm_gc_$1_collection_time_ms
+    type: counter
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionCount'
+    name: jvm_gc_$1_collection_count
+    type: counter
+
+  # Fallback: expose any remaining numeric attributes
+  - pattern: ".*"
+    name: jmx_metric
+    type: gauge
+    labels:
+      mbean: "$0"

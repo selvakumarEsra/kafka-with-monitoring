@@ -1,0 +1,76 @@
+version: "3.8"
+
+services:
+  broker:
+    image: confluentinc/cp-kafka:8.1.1
+    hostname: broker
+    container_name: broker
+    ports:
+      - "9092:9092"   # Kafka for clients on host
+      - "9101:9101"   # JMX port for metrics
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_LISTENERS: "PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@broker:29093"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      # Single-node dev settings
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # Storage
+      KAFKA_LOG_DIRS: "/tmp/kraft-combined-logs"
+
+      # Cluster ID (static random base64 string)
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
+      # JMX for metrics
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: broker
+
+    # Optional: persist local logs
+    # volumes:
+    #   - ./data/kafka:/tmp/kraft-combined-logs
+
+  kafka-jmx-exporter:
+    image: prom/jmx-exporter:0.20.0
+    container_name: kafka-jmx-exporter
+    depends_on:
+      - broker
+    ports:
+      - "7071:7071"   # Prometheus scrapes here
+    volumes:
+      - ./monitoring/jmx-exporter/kafka-jmx-config.yml:/config/kafka-jmx-config.yml:ro
+    command:
+      - "7071"
+      - "/config/kafka-jmx-config.yml"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    depends_on:
+      - kafka-jmx-exporter
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      # Quick & dirty dev setup; tune for prod
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./monitoring/grafana:/var/lib/grafana
